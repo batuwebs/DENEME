@@ -1,0 +1,118 @@
+import React from "react";
+import { BarChart, Trophy, Medal, Star, User, Shield } from "lucide-react";
+import { motion } from "motion/react";
+
+export default function RanksSection() {
+  const leaderBoardUsers = [
+    { rank: 1, name: "SarsilmazBatu", town: "SarsilmazKoyu", level: 98, role: "VIP+", points: 4280 },
+    { rank: 2, name: "CrazyTowny_41", town: "NeonHills", level: 84, role: "VIP", points: 3950 },
+    { rank: 3, name: "MinecraftLord", town: "CyberCity", level: 79, role: "member", points: 3200 },
+    { rank: 4, name: "GamerBro", town: "SarsilmazKoyu", level: 75, role: "member", points: 2900 },
+    { rank: 5, name: "BatuMC", town: "Asgard", level: 71, role: "VIP", points: 2450 }
+  ];
+
+  const topTowns = [
+    { rank: 1, name: "SarsilmazKoyu", mayor: "SarsilmazBatu", residents: 28, bank: "1.240.000 $" },
+    { rank: 2, name: "NeonHills", mayor: "CrazyTowny_41", residents: 19, bank: "740.000 $" },
+    { rank: 3, name: "CyberCity", mayor: "AlphaTech", residents: 15, bank: "542.000 $" }
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -15 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8 pb-16"
+    >
+      <div>
+        <h2 className="font-headline-lg font-extrabold text-on-surface text-3xl tracking-tight">
+          Sunucu <span className="text-primary-container">Sıralamaları</span>
+        </h2>
+        <p className="text-xs text-outline font-body-md mt-1">
+          SarsılmazMC evreninin en kuvvetli imparatorlukları ve zirvedeki kahramanları.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Top Players Table */}
+        <div className="glass-card p-6 rounded-2xl border border-outline-variant/35 space-y-4">
+          <div className="flex items-center gap-2 border-b border-outline-variant/15 pb-3">
+            <Trophy className="w-5 h-5 text-secondary animate-pulse" />
+            <h3 className="font-headline-md text-base font-bold text-on-surface">En Kuvvetli Oyuncular Liderlik Tablosu</h3>
+          </div>
+
+          <div className="space-y-3">
+            {leaderBoardUsers.map((user, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container/30 border border-outline-variant/10 hover:border-outline-variant/35 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`w-6 h-6 rounded-lg font-mono text-xs font-bold flex items-center justify-center ${
+                    user.rank === 1 ? "bg-secondary text-black" :
+                    user.rank === 2 ? "bg-outline text-black" :
+                    user.rank === 3 ? "bg-amber-700 text-white" :
+                    "bg-surface-container-highest text-outline"
+                  }`}>
+                    {user.rank}
+                  </span>
+                  
+                  <div>
+                    <span className="font-bold text-sm text-on-surface block">{user.name}</span>
+                    <span className="text-[10px] font-mono text-outline block">Towny Kasaba: {user.town} • Seviye: {user.level}</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold text-secondary-fixed-dim block">{user.points} PUAN</span>
+                  <span className="bg-surface-variant/40 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider text-outline-variant font-bold border border-outline-variant/10">
+                    {user.role}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top Towns Table */}
+        <div className="glass-card p-6 rounded-2xl border border-outline-variant/35 space-y-4">
+          <div className="flex items-center gap-2 border-b border-outline-variant/15 pb-3">
+            <Medal className="w-5 h-5 text-primary-container animate-pulse" />
+            <h3 className="font-headline-md text-base font-bold text-on-surface">Zirvedeki Kasaba &amp; Şehir Yapıları</h3>
+          </div>
+
+          <div className="space-y-3">
+            {topTowns.map((town, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container/30 border border-outline-variant/10 hover:border-outline-variant/35 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`w-6 h-6 rounded-lg font-mono text-xs font-bold flex items-center justify-center ${
+                    town.rank === 1 ? "bg-secondary text-black" :
+                    town.rank === 2 ? "bg-outline text-black" :
+                    town.rank === 3 ? "bg-amber-700 text-white" :
+                    "bg-surface-container-highest text-outline"
+                  }`}>
+                    {town.rank}
+                  </span>
+                  
+                  <div>
+                    <span className="font-bold text-sm text-on-surface block">{town.name}</span>
+                    <span className="text-[10px] font-mono text-outline block">Başkan: {town.mayor}</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold text-primary-container block">{town.residents} Resident</span>
+                  <span className="text-[10px] font-mono text-outline block">Banka: {town.bank}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

@@ -1,0 +1,1500 @@
+import React, { useState, useEffect } from "react";
+import { Product, Ticket, TicketMessage, AppUser, DynamicCategory, ApprovalRequest } from "../types";
+import { 
+  PlusCircle, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  Check, 
+  ArrowRight, 
+  ShieldCheck, 
+  Mail, 
+  Sliders, 
+  Ticket as TicketIcon, 
+  Star, 
+  RefreshCw, 
+  Send, 
+  AlertTriangle, 
+  Tag, 
+  Coins, 
+  FolderPlus, 
+  UserPlus, 
+  UserCheck, 
+  X,
+  ImageIcon,
+  LayoutDashboard,
+  TrendingUp,
+  ArrowUpRight,
+  Activity,
+  ShieldAlert,
+  Clock,
+  Sparkles
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+
+interface AdminPanelSectionProps {
+  currentUser: AppUser | null;
+  products: Product[];
+  tickets: Ticket[];
+  categories: DynamicCategory[];
+  usersList: AppUser[];
+  onAddOrUpdateProduct: (product: Product) => Promise<void>;
+  onDeleteProduct: (productId: string) => Promise<void>;
+  onAddCategory: (category: DynamicCategory) => Promise<void>;
+  onLoadCredits: (targetUser: string, amount: number) => Promise<void>;
+  onAddAdminReply: (ticketId: string, text: string) => Promise<void>;
+  onChangeTicketStatus: (ticketId: string, status: "beklemede" | "yanıtlandı" | "kapatıldı") => Promise<void>;
+  onDeleteTicket: (ticketId: string) => Promise<void>;
+  onRefreshDatabase: () => void;
+  isDatabaseRefreshing: boolean;
+  approvals: ApprovalRequest[];
+  onApproveRequest: (requestId: string) => Promise<void>;
+  onRejectRequest: (requestId: string) => Promise<void>;
+  adminNavigationTrigger?: {
+    tab: "dashboard" | "products" | "categories" | "tickets" | "users" | "approvals";
+    action?: {
+      type: "open_product_form";
+      category: string;
+    };
+    timestamp: number;
+  } | null;
+  onUpdateTicketFields?: (ticketId: string, updates: Partial<Ticket>) => Promise<void>;
+  onUpdateTicketMessage?: (ticketId: string, messageIndex: number, newText: string) => Promise<void>;
+  onChangeUserRole?: (username: string, newRole: "free" | "admin") => Promise<void>;
+}
+
+export default function AdminPanelSection({
+  currentUser,
+  products,
+  tickets,
+  categories,
+  usersList,
+  onAddOrUpdateProduct,
+  onDeleteProduct,
+  onAddCategory,
+  onLoadCredits,
+  onAddAdminReply,
+  onChangeTicketStatus,
+  onDeleteTicket,
+  onRefreshDatabase,
+  isDatabaseRefreshing,
+  approvals,
+  onApproveRequest,
+  onRejectRequest,
+  adminNavigationTrigger,
+  onUpdateTicketFields,
+  onUpdateTicketMessage,
+  onChangeUserRole
+}: AdminPanelSectionProps) {
+  const [adminTab, setAdminTab] = useState<"dashboard" | "products" | "categories" | "tickets" | "users" | "approvals">("dashboard");
+
+  // React to reactive dropdown triggers from external navbar on Mount/Change
+  useEffect(() => {
+    if (adminNavigationTrigger) {
+      setAdminTab(adminNavigationTrigger.tab);
+      if (adminNavigationTrigger.action?.type === "open_product_form") {
+        setProductFormOpen(true);
+        setEditingProduct(null);
+        setProdId("P-" + Math.floor(Math.random() * 9000 + 1000));
+        setProdTitle("");
+        setProdPrice(50);
+        setProdCategory(adminNavigationTrigger.action.category);
+        setProdImage("");
+        setProdBuyUrl("");
+      }
+    }
+  }, [adminNavigationTrigger]);
+
+  // Product Manager form state
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  const [prodId, setProdId] = useState("");
+  const [prodTitle, setProdTitle] = useState("");
+  const [prodPrice, setProdPrice] = useState(50);
+  const [prodCategory, setProdCategory] = useState("vip");
+  const [prodImage, setProdImage] = useState("");
+  const [prodBuyUrl, setProdBuyUrl] = useState("");
+  const [submittingProduct, setSubmittingProduct] = useState(false);
+
+  // Category creation form state
+  const [catId, setCatId] = useState("");
+  const [catName, setCatName] = useState("");
+  const [submittingCategory, setSubmittingCategory] = useState(false);
+
+  // Credits load form state
+  const [targetUser, setTargetUser] = useState("");
+  const [creditAmount, setCreditAmount] = useState(100);
+  const [submittingCredits, setSubmittingCredits] = useState(false);
+
+  // Active admin ticket review
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
+
+  // Support ticket fields editing state
+  const [isEditingTicketFields, setIsEditingTicketFields] = useState(false);
+  const [editTicketSubject, setEditTicketSubject] = useState("");
+  const [editTicketCategory, setEditTicketCategory] = useState<any>("Genel");
+  const [editTicketUser, setEditTicketUser] = useState("");
+
+  useEffect(() => {
+    const act = tickets.find((t) => t.id === activeTicketId);
+    if (act) {
+      setEditTicketSubject(act.subject);
+      setEditTicketCategory(act.category);
+      setEditTicketUser(act.user);
+    }
+    setIsEditingTicketFields(false);
+  }, [activeTicketId, tickets]);
+
+  // Search filter
+  const [usersSearch, setUsersSearch] = useState("");
+
+  const resetProductForm = () => {
+    setEditingProduct(null);
+    setProdId("");
+    setProdTitle("");
+    setProdPrice(50);
+    setProdCategory(categories[0]?.id || "vip");
+    setProdImage("https://lh3.googleusercontent.com/aida-public/AB6AXuCT3zrEX24p3gdClgwg-TEqOKsn3unm-TTq5KXJtmWyERQ6MAExeAwaVlLqAsCCyf4u9V5-ikRrxxViBI9KirsS6VAc8zHz3rep8MsyO5C4_DSitTmL5-ECXGoUGtxent3U8nFcXqItUHfGK3ni4Lipv906W7NmCbWKa0r64P20n5ZGrTboUsIsDPnpkjencXVgFgy7iRg9HYkhuDaWp4Gvk2TdVnC1aAx_t33IBuZ6xbpCed6ToNbud8aQgYKDo1x-4jAynEZwfeA");
+    setProdBuyUrl("https://www.papara.com/");
+  };
+
+  const handleOpenEditProduct = (prod: Product) => {
+    setEditingProduct(prod);
+    setProdId(prod.id);
+    setProdTitle(prod.title);
+    setProdPrice(prod.price);
+    setProdCategory(prod.category);
+    setProdImage(prod.image);
+    setProdBuyUrl(prod.buyUrl || "https://www.papara.com/");
+    setProductFormOpen(true);
+  };
+
+  const handleSaveProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prodId.trim() || !prodTitle.trim()) return;
+
+    setSubmittingProduct(true);
+    const payload: Product = {
+      id: prodId.trim().toLowerCase().replace(/\s+/g, "-"),
+      title: prodTitle.trim(),
+      price: Number(prodPrice),
+      image: prodImage.trim() || "https://lh3.googleusercontent.com/aida-public/AB6AXuCT3zrEX24p3gdClgwg-TEqOKsn3unm-TTq5KXJtmWyERQ6MAExeAwaVlLqAsCCyf4u9V5-ikRrxxViBI9KirsS6VAc8zHz3rep8MsyO5C4_DSitTmL5-ECXGoUGtxent3U8nFcXqItUHfGK3ni4Lipv906W7NmCbWKa0r64P20n5ZGrTboUsIsDPnpkjencXVgFgy7iRg9HYkhuDaWp4Gvk2TdVnC1aAx_t33IBuZ6xbpCed6ToNbud8aQgYKDo1x-4jAynEZwfeA",
+      category: prodCategory,
+      buyUrl: prodBuyUrl.trim() || "https://www.papara.com/"
+    };
+
+    try {
+      await onAddOrUpdateProduct(payload);
+      setProductFormOpen(false);
+      resetProductForm();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingProduct(false);
+    }
+  };
+
+  const handleAddCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catId.trim() || !catName.trim()) return;
+
+    setSubmittingCategory(true);
+    const cleanId = catId.trim().toLowerCase().replace(/\s+/g, "-");
+    const payload: DynamicCategory = {
+      id: cleanId,
+      name: catName.trim()
+    };
+
+    try {
+      await onAddCategory(payload);
+      setCatId("");
+      setCatName("");
+      alert("Kategori başarıyla eklendi!");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingCategory(false);
+    }
+  };
+
+  const handleManualCreditsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser.trim() || creditAmount === 0) return;
+
+    setSubmittingCredits(true);
+    try {
+      await onLoadCredits(targetUser.trim(), creditAmount);
+      // Success is alerted from higher-level callback
+      setTargetUser("");
+      setCreditAmount(100);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingCredits(false);
+    }
+  };
+
+  const handleSendAdminReplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminReplyText.trim() || !activeTicketId) return;
+
+    setSubmittingReply(true);
+    try {
+      await onAddAdminReply(activeTicketId, adminReplyText);
+      await onChangeTicketStatus(activeTicketId, "yanıtlandı");
+      setAdminReplyText("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingReply(false);
+    }
+  };
+
+  const activeTicket = tickets.find((t) => t.id === activeTicketId);
+
+  // VIP / Admin Access Checks
+  const isAuthorized = currentUser && (currentUser.role?.toLowerCase() === "admin");
+
+  if (!isAuthorized) {
+    return (
+      <div className="glass-card p-10 rounded-2xl border border-red-500/30 text-center space-y-4 max-w-lg mx-auto">
+        <AlertTriangle className="w-12 h-12 text-error mx-auto animate-bounce" />
+        <h3 className="font-headline-md text-red-400 font-black">Erişim Engellendi!</h3>
+        <p className="text-xs text-outline font-body-md leading-relaxed">
+          Giriş yetkiniz bu yönetim sayfasını incelemek için yetersizdir. Lütfen profil sayfasından geçerli bir yetkili e-posta ve şifresiyle oturum açın.
+        </p>
+      </div>
+    );
+  }
+
+  // Filtered users for simple credit picker helpers
+  const filteredUsers = usersList.filter((u) => 
+    u.username.toLowerCase().includes(usersSearch.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6 pb-16 font-sans">
+      {/* Admin Module Title Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant/15 pb-4">
+        <div>
+          <h2 className="font-headline-lg font-extrabold text-on-surface text-3xl tracking-tight flex items-center gap-2">
+            <ShieldCheck className="w-8 h-8 text-secondary" />
+            Yönetim &amp; <span className="text-secondary">Destek Paneli</span>
+          </h2>
+          <p className="text-xs text-outline font-body-md mt-1">
+            Giriş yapan yetkili: <strong className="text-white">{currentUser?.username}</strong> ({currentUser?.role.toUpperCase()}) • Tüm ürün ve mali işleri buradan gerçek hayata geçirin.
+          </p>
+        </div>
+
+        <button
+          onClick={onRefreshDatabase}
+          disabled={isDatabaseRefreshing}
+          className="self-end px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest rounded-xl text-xs font-mono font-bold border border-outline-variant/30 text-on-surface flex items-center gap-2 transition-all cursor-pointer"
+        >
+          <RefreshCw className={`w-4 h-4 ${isDatabaseRefreshing ? "animate-spin text-secondary" : ""}`} />
+          PANEL VERİLERİNİ TAZELE
+        </button>
+      </div>
+
+      {/* Admin Multi-Tab Navigation */}
+      <div className="flex flex-wrap gap-2 border-b border-outline-variant/15 pb-2">
+        <button
+          onClick={() => setAdminTab("dashboard")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "dashboard"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" /> Genel Bakış (Dashboard)
+        </button>
+
+        <button
+          onClick={() => setAdminTab("products")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "products"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <Sliders className="w-4 h-4" /> Ürün Yönetimi ({products.length})
+        </button>
+
+        <button
+          onClick={() => setAdminTab("categories")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "categories"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <Tag className="w-4 h-4" /> Kategori Paneli ({categories.length})
+        </button>
+
+        <button
+          onClick={() => setAdminTab("tickets")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "tickets"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <TicketIcon className="w-4 h-4" /> Destek Talepleri ({tickets.length})
+        </button>
+
+        <button
+          onClick={() => setAdminTab("users")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "users"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <Coins className="w-4 h-4" /> Kredi &amp; Kullanıcılar ({usersList.length})
+        </button>
+
+        <button
+          onClick={() => setAdminTab("approvals")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === "approvals"
+              ? "bg-secondary text-on-secondary shadow-[0_0_12px_rgba(254,183,10,0.25)]"
+              : "bg-surface-container-high/40 text-outline hover:text-white"
+          }`}
+        >
+          <UserCheck className="w-4 h-4" /> Bakiye &amp; Satın Alma Onayları ({approvals.length})
+        </button>
+      </div>
+
+      {/* RENDER ACTIVE TAB */}
+      <AnimatePresence mode="wait">
+        {adminTab === "dashboard" && (
+          /* TAB 0: PREMIUM ULTRA PRO MAX OVERVIEW DASHBOARD */
+          <motion.div
+            key="tab-dashboard"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            {/* Server Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Users */}
+              <div onClick={() => setAdminTab("users")} className="glass-card p-5 rounded-2xl border border-outline-variant/20 hover:border-secondary/40 transition-all cursor-pointer group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                  <UserPlus className="w-16 h-16 text-secondary" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-secondary/15 rounded-xl text-secondary border border-secondary/20">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-outline font-black tracking-wider uppercase">Toplam Oyuncu</span>
+                    <h4 className="text-2xl font-black text-white mt-0.5">{usersList.length}</h4>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-outline group-hover:text-secondary transition-colors">
+                  <span>Hesapları Yönet &amp; Ara</span>
+                  <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+
+              {/* Card 2: Support Tickets */}
+              <div onClick={() => setAdminTab("tickets")} className="glass-card p-5 rounded-2xl border border-outline-variant/20 hover:border-yellow-500/40 transition-all cursor-pointer group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                  <TicketIcon className="w-16 h-16 text-yellow-400" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-yellow-500/15 rounded-xl text-yellow-400 border border-yellow-500/20">
+                    <TicketIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-outline font-black tracking-wider uppercase">Destek Talepleri</span>
+                    <h4 className="text-2xl font-black text-white mt-0.5">
+                      {tickets.length} <span className="text-xs text-outline font-normal">({tickets.filter(t => t.status === "beklemede").length} Bekleyen)</span>
+                    </h4>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-outline group-hover:text-yellow-400 transition-colors">
+                  <span>Biletleri İncele &amp; Yanıtla</span>
+                  <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+
+              {/* Card 3: Financial Pending Approvals */}
+              <div onClick={() => setAdminTab("approvals")} className="glass-card p-5 rounded-2xl border border-outline-variant/20 hover:border-green-500/40 transition-all cursor-pointer group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                  <Coins className="w-16 h-16 text-green-400" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-500/15 rounded-xl text-green-400 border border-green-500/20">
+                    <Coins className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-outline font-black tracking-wider uppercase">Bekleyen Finansal</span>
+                    <h4 className="text-2xl font-black text-white mt-0.5">
+                      {approvals.filter(a => a.status === "beklemede").length} <span className="text-xs text-green-400 font-bold">({approvals.filter(a => a.status === "beklemede").reduce((acc, current) => acc + current.amount, 0)} ₺)</span>
+                    </h4>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-outline group-hover:text-green-400 transition-colors">
+                  <span>Onay Sırasını İşle</span>
+                  <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+
+              {/* Card 4: Products */}
+              <div onClick={() => setAdminTab("products")} className="glass-card p-5 rounded-2xl border border-outline-variant/20 hover:border-secondary/40 transition-all cursor-pointer group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                  <Sliders className="w-16 h-16 text-secondary" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-secondary/15 rounded-xl text-secondary border border-secondary/20">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-outline font-black tracking-wider uppercase">Market Ürünleri</span>
+                    <h4 className="text-2xl font-black text-white mt-0.5">
+                      {products.length} <span className="text-xs text-outline font-normal">({categories.length} Kategori)</span>
+                    </h4>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-outline group-hover:text-secondary transition-colors">
+                  <span>Ürün Oranları &amp; Düzenle</span>
+                  <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Panel */}
+            <div className="glass-card p-5 rounded-2xl border border-outline-variant/15 space-y-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-secondary" />
+                <h4 className="font-headline-sm text-sm text-on-surface font-black uppercase tracking-wider">Hızlı Aksiyon &amp; Yönetim Terminali</h4>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <button
+                  onClick={() => {
+                    resetProductForm();
+                    setAdminTab("products");
+                    setProductFormOpen(true);
+                  }}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group"
+                >
+                  <PlusCircle className="w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0" />
+                  <span>YENİ ÜRÜN EKLE</span>
+                </button>
+
+                <button
+                  onClick={() => setAdminTab("categories")}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group"
+                >
+                  <FolderPlus className="w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0" />
+                  <span>KATEGORİ TANIMLA</span>
+                </button>
+
+                <button
+                  onClick={() => setAdminTab("users")}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group"
+                >
+                  <UserPlus className="w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0" />
+                  <span>BAKİYE / KREDİ YÜKLE</span>
+                </button>
+
+                <button
+                  onClick={() => setAdminTab("tickets")}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group"
+                >
+                  <TicketIcon className="w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0" />
+                  <span>DESTEK KAYITLARI</span>
+                </button>
+
+                <button
+                  onClick={() => setAdminTab("approvals")}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group"
+                >
+                  <UserCheck className="w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0" />
+                  <span>ONAY KUYRUĞU</span>
+                </button>
+
+                <button
+                  onClick={onRefreshDatabase}
+                  disabled={isDatabaseRefreshing}
+                  className="p-3 bg-surface-container-high/45 hover:bg-secondary hover:text-[#070c0e] hover:shadow-[0_0_15px_rgba(254,183,10,0.3)] text-left rounded-xl border border-outline-variant/20 hover:border-secondary transition-all cursor-pointer flex flex-col justify-between gap-3 text-xs font-bold font-mono group disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 text-secondary group-hover:text-[#070c0e] shrink-0 ${isDatabaseRefreshing ? "animate-spin" : ""}`} />
+                  <span>VERİLERİ TAZELE</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification and Prioritised Alerts Hub */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Box 1: Urgent Support Tickets */}
+              <div className="glass-card p-5 rounded-2xl border border-outline-variant/15 flex flex-col h-[320px]">
+                <div className="flex justify-between items-center mb-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-yellow-400" />
+                    <h4 className="text-xs font-black font-mono text-white uppercase tracking-wider">Son Bekleyen Destek Talepleri</h4>
+                  </div>
+                  <button onClick={() => setAdminTab("tickets")} className="text-[10px] font-mono text-secondary hover:underline cursor-pointer flex items-center gap-1">
+                    Tümünü Gör <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 overflow-y-auto flex-1 custom-scrollbar pr-1">
+                  {tickets.filter(t => t.status === "beklemede").length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                      <Check className="w-8 h-8 text-green-400 mb-2 p-1.5 bg-green-500/10 rounded-full border border-green-500/30" />
+                      <p className="text-[10px] font-mono text-outline">Kuyruk temiz! Yanıt bekleyen destek talebi yok.</p>
+                    </div>
+                  ) : (
+                    tickets.filter(t => t.status === "beklemede").slice(0, 3).map(t => (
+                      <div
+                        key={t.id}
+                        onClick={() => {
+                          setActiveTicketId(t.id);
+                          setAdminTab("tickets");
+                        }}
+                        className="p-3 rounded-xl bg-[#090f11] hover:bg-secondary/10 border border-outline-variant/10 hover:border-secondary transition-all cursor-pointer flex justify-between items-center"
+                      >
+                        <div className="max-w-[70%]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[9px] font-black text-secondary">{t.user.toUpperCase()}</span>
+                            <span className="text-[8px] bg-outline-variant/20 px-1 py-0.2 rounded text-outline-variant font-mono">{t.category}</span>
+                          </div>
+                          <p className="text-xs font-bold text-white mt-1 truncate">{t.subject}</p>
+                        </div>
+                        <button className="px-2.5 py-1.5 bg-secondary/15 text-secondary border border-secondary/20 rounded-lg text-[9px] font-black tracking-wider hover:bg-secondary hover:text-black font-mono transition-all">
+                          YANITLA
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Box 2: Pending Financial Approvals */}
+              <div className="glass-card p-5 rounded-2xl border border-outline-variant/15 flex flex-col h-[320px]">
+                <div className="flex justify-between items-center mb-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-green-400" />
+                    <h4 className="text-xs font-black font-mono text-white uppercase tracking-wider">Son Bekleyen Bakiye / Siparişler</h4>
+                  </div>
+                  <button onClick={() => setAdminTab("approvals")} className="text-[10px] font-mono text-secondary hover:underline cursor-pointer flex items-center gap-1">
+                    Onayları Aç <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 overflow-y-auto flex-1 custom-scrollbar pr-1">
+                  {approvals.filter(a => a.status === "beklemede").length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                      <Clock className="w-8 h-8 text-green-400 mb-2 p-1.5 bg-green-500/10 rounded-full border border-green-500/30" />
+                      <p className="text-[10px] font-mono text-outline">Finansal onay sırası boş! Bekleyen talep bulunmuyor.</p>
+                    </div>
+                  ) : (
+                    approvals.filter(a => a.status === "beklemede").slice(0, 3).map(req => (
+                      <div
+                        key={req.id}
+                        onClick={() => setAdminTab("approvals")}
+                        className="p-3 rounded-xl bg-[#090f11] hover:bg-green-500/5 border border-outline-variant/10 hover:border-green-500/30 transition-all cursor-pointer flex justify-between items-center"
+                      >
+                        <div className="max-w-[70%]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[9px] font-black text-white">{req.user.toUpperCase()}</span>
+                            <span className={`text-[8px] px-1 py-0.2 rounded font-mono font-bold ${
+                              req.type === "bakiye" ? "bg-amber-500/10 text-amber-400" : "bg-cyan-500/10 text-cyan-400"
+                            }`}>
+                              {req.type === "bakiye" ? "BAKİYE" : "SİPARİŞ"}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-outline mt-1 truncate">{req.details}</p>
+                        </div>
+                        <div className="text-right font-mono text-xs font-black text-white shrink-0">
+                          {req.amount},00 ₺
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {adminTab === "products" && (
+          /* TAB 1: PRODUCT LISTING & CREATION */
+          <motion.div
+            key="tab-products"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-between items-center">
+              <h3 className="font-headline-md text-lg text-on-surface font-black">Mevcut Ürün Listesi</h3>
+              <button
+                onClick={() => {
+                  resetProductForm();
+                  setProductFormOpen(true);
+                }}
+                className="px-4 py-2 bg-primary-container hover:bg-primary-container/85 text-on-primary-container font-mono text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1 shadow-md"
+              >
+                <PlusCircle className="w-4 h-4" /> YENİ ÜRÜN EKLE
+              </button>
+            </div>
+
+            {/* Product Creation/Editing Drawer Overlay Form */}
+            {productFormOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="glass-card p-6 rounded-2xl border border-secondary/40 space-y-4 bg-surface-container"
+              >
+                <div className="flex justify-between items-center border-b border-outline-variant/15 pb-2">
+                  <h4 className="font-bold text-sm text-secondary flex items-center gap-1.5">
+                    {editingProduct ? "Ürünü Düzenle" : "Yeni Ürün Tanımla"}
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setProductFormOpen(false);
+                      resetProductForm();
+                    }}
+                    className="text-xs text-outline hover:text-error font-mono cursor-pointer"
+                  >
+                    Kapat
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveProductSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">BENZERSİZ ID (KÜÇÜK HARF)</label>
+                      <input
+                        type="text"
+                        required
+                        disabled={!!editingProduct}
+                        placeholder="sarsilmaz-vip"
+                        value={prodId}
+                        onChange={(e) => setProdId(e.target.value)}
+                        className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">ÜRÜN BAŞLIĞI</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Sarsılmaz VIP"
+                        value={prodTitle}
+                        onChange={(e) => setProdTitle(e.target.value)}
+                        className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">FİYAT (₺)</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="75"
+                        value={prodPrice}
+                        onChange={(e) => setProdPrice(Number(e.target.value))}
+                        className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">ÜRÜN KATEGORİSİ</label>
+                      <select
+                        value={prodCategory}
+                        onChange={(e) => setProdCategory(e.target.value)}
+                        className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-3 font-mono text-xs text-on-surface outline-none"
+                      >
+                        {categories.length > 0 ? (
+                          categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="vip">VIP Paketleri (vip)</option>
+                            <option value="kasa">Kozmik Kasalar (kasa)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">SATIN ALMA LINKI (buyUrl)</label>
+                      <input
+                        type="text"
+                        placeholder="https://www.papara.com/"
+                        value={prodBuyUrl}
+                        onChange={(e) => setProdBuyUrl(e.target.value)}
+                        className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono text-outline uppercase tracking-wider block font-bold text-secondary">
+                      TESLİMAT / RESİM BAĞLANTISI (IMAGE URL)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://images.com/our-item.png"
+                      value={prodImage}
+                      onChange={(e) => setProdImage(e.target.value)}
+                      className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingProduct}
+                    className="w-full py-3.5 bg-secondary hover:bg-secondary/85 text-on-secondary font-mono text-xs font-black uppercase rounded-xl transition-all shadow-[0_0_12px_rgba(254,183,10,0.25)] cursor-pointer"
+                  >
+                    {submittingProduct ? "KAYDEDİLİYOR..." : "ÜRÜNÜ SİSTEME GÖNDER / GÜNCELLE"}
+                  </button>
+                </form>
+              </motion.div>
+            )}
+
+            {/* List Table of Products with simplified display as requested */}
+            <div className="overflow-x-auto rounded-xl border border-outline-variant/30 glass-card bg-surface-container-low/40">
+              <table className="w-full text-left border-collapse font-mono text-xs text-outline">
+                <thead>
+                  <tr className="bg-surface-container/60 border-b border-outline-variant/25 text-on-surface font-bold">
+                    <th className="p-4">ÜRÜN RESMİ</th>
+                    <th className="p-4">BAŞLIK</th>
+                    <th className="p-4">KATEGORİ</th>
+                    <th className="p-4">FİYAT</th>
+                    <th className="p-4">SATIN ALMA LİNKİ</th>
+                    <th className="p-4 text-center">İŞLEMLER</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20">
+                  {products.map((p) => {
+                    const catName = categories.find((c) => c.id === p.category)?.name || p.category.toUpperCase();
+                    return (
+                      <tr key={p.id} className="hover:bg-surface-container-high/30 text-white font-medium">
+                        <td className="p-4">
+                          <img
+                            src={p.image}
+                            alt={p.title}
+                            className="w-10 h-10 object-contain rounded bg-background p-1 border border-outline-variant/15"
+                          />
+                        </td>
+                        <td className="p-4 font-bold text-on-surface">{p.title}</td>
+                        <td className="p-4">
+                          <span className="bg-surface-variant/45 px-2.5 py-1 rounded text-outline border border-outline-variant/20">
+                            {catName}
+                          </span>
+                        </td>
+                        <td className="p-4 text-secondary-fixed-dim font-bold">{p.price},00 ₺</td>
+                        <td className="p-4 text-[10px] truncate max-w-[150px]" title={p.buyUrl}>
+                          {p.buyUrl}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => handleOpenEditProduct(p)}
+                              className="p-2 bg-surface-container hover:bg-[#121c21] rounded-lg text-primary-container cursor-pointer transition-colors"
+                              title="Güncelle"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`${p.title} silinecektir. Emin misiniz?`)) {
+                                  onDeleteProduct(p.id);
+                                }
+                              }}
+                              className="p-2 bg-surface-container hover:bg-error/15 rounded-lg text-error cursor-pointer transition-colors"
+                              title="Sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
+        {adminTab === "categories" && (
+          /* TAB 2: DYNAMIC CATEGORY PANEL */
+          <motion.div
+            key="tab-categories"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <h3 className="font-headline-md text-lg text-on-surface font-black">Market Kategorileri Yönetimi</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Form Category Add */}
+              <form
+                onSubmit={handleAddCategorySubmit}
+                className="glass-card p-6 rounded-2xl border border-secondary/35 space-y-4"
+              >
+                <h4 className="text-secondary font-mono font-bold text-sm flex items-center gap-1.5">
+                  <FolderPlus className="w-4 h-4" /> Yeni Kategori Ekle
+                </h4>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">KATEGORİ KODU (ID / SLUG)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Örn: vip, kasa, kit, spawner"
+                    value={catId}
+                    onChange={(e) => setCatId(e.target.value)}
+                    className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3.5 px-4 font-mono text-xs text-on-surface outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">GÖRÜNEN KATEGORİ ADI</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Örn: Süper VIP Paketleri"
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3.5 px-4 font-mono text-xs text-on-surface outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingCategory}
+                  className="w-full py-3.5 bg-secondary hover:bg-secondary/90 text-on-secondary font-mono text-xs font-black uppercase rounded-xl transition-all cursor-pointer"
+                >
+                  {submittingCategory ? "EKLENİYOR..." : "KATEGORİYİ KAYDET VEYA DUZELT"}
+                </button>
+              </form>
+
+              {/* List Categories */}
+              <div className="glass-card p-6 rounded-2xl border border-outline-variant/20 space-y-4">
+                <h4 className="text-white font-mono font-bold text-sm flex items-center gap-1.5">
+                  <Tag className="w-4 h-4" /> Tanımlı Kategoriler ({categories.length})
+                </h4>
+
+                <div className="divide-y divide-outline-variant/15">
+                  {categories.map((c) => {
+                    const productCount = products.filter((p) => p.category === c.id).length;
+                    return (
+                      <div key={c.id} className="py-3 flex justify-between items-center font-mono text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{c.name}</span>
+                          <span className="text-[10px] text-outline">Kısayol kodu: {c.id}</span>
+                        </div>
+                        <span className="bg-primary-container/10 px-2.5 py-0.5 rounded-full border border-primary-container/20 text-primary-container font-bold text-[10px]">
+                          {productCount} Ürün
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {adminTab === "tickets" && (
+          /* TAB 3: SUPPORT TICKETS LISTING & INTERACTIVE REPLY MANAGER */
+          <motion.div
+            key="tab-tickets"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+          >
+            {/* List Siderail */}
+            <div className="lg:col-span-5 space-y-4">
+              <h3 className="font-headline-md text-base font-black px-1 text-on-surface">Mevcut Arıza &amp; Destek Kayıtları ({tickets.length})</h3>
+
+              <div className="space-y-2.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                {tickets.length === 0 ? (
+                  <div className="p-6 border border-dashed border-outline-variant/35 rounded-xl text-center text-xs text-outline font-mono">
+                    Sistemde hiç destek kaydı bulunamadı.
+                  </div>
+                ) : (
+                  tickets.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => {
+                        setActiveTicketId(t.id);
+                        setAdminReplyText("");
+                      }}
+                      className={`w-full text-left p-4 rounded-xl border transition-all flex flex-col justify-between cursor-pointer group ${
+                        activeTicketId === t.id
+                          ? "bg-secondary/10 border-secondary"
+                          : "glass-card border-outline-variant/20 hover:border-outline-variant/60"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="space-y-0.5 max-w-[70%]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-[9px] text-outline font-bold">{t.id}</span>
+                            <span className="bg-secondary/15 text-secondary font-mono text-[9px] px-1.5 rounded uppercase font-bold tracking-wider">
+                              OYUNCU: {t.user}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm text-on-surface group-hover:text-secondary transition-colors truncate">
+                            {t.subject}
+                          </h4>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                              t.status === "beklemede"
+                                ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
+                                : t.status === "yanıtlandı"
+                                ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                                : "bg-outline-variant/10 text-outline border border-outline-variant/30"
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+
+                          {/* Admin support ticket DELETION to satisfy requested scale protection ("yuk binmesin die destek talebi silebilsin") */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Yetkili silme işlemi! ${t.id} kilit silinsin mi? (Geri döndürülemez)`)) {
+                                onDeleteTicket(t.id);
+                                if (activeTicketId === t.id) {
+                                  setActiveTicketId(null);
+                                }
+                              }
+                            }}
+                            className="p-1 hover:bg-error/20 text-outline-variant hover:text-error rounded-md cursor-pointer shrink-0 transition-colors"
+                            title="Destek Talebini Tamamen Sil"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 mt-3 border-t border-outline-variant/10 flex justify-between items-center text-[10px] font-mono text-outline">
+                        <span className="bg-surface-variant/40 px-2 py-0.5 rounded text-outline-variant">{t.category}</span>
+                        <span>{new Date(t.updatedAt).toLocaleDateString("tr-TR")}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Chat Response Area */}
+            <div className="lg:col-span-7">
+              {activeTicket ? (
+                <div className="glass-card rounded-2xl border border-secondary/35 overflow-hidden flex flex-col h-[65vh] shadow-2xl relative">
+                  {/* Chat header */}
+                  <div className="bg-surface-container/90 px-4 py-3 border-b border-outline-variant/25 flex items-center justify-between font-sans">
+                    <div>
+                      <h4 className="text-on-surface font-bold text-sm">Destek Formu: {activeTicket.subject}</h4>
+                      <p className="text-[10px] text-secondary font-mono tracking-wider font-extrabold uppercase">
+                        AÇAN OYUNCU: {activeTicket.user} • {activeTicket.id}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {onUpdateTicketFields && (
+                        <button
+                          onClick={() => setIsEditingTicketFields(!isEditingTicketFields)}
+                          className="px-2.5 py-1 bg-surface-container-highest hover:bg-secondary/20 hover:text-secondary rounded-lg border border-[#1a252b] text-[10px] font-mono text-outline font-black cursor-pointer transition-all flex items-center gap-1 uppercase"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          {isEditingTicketFields ? "İptal" : "Alanları Düzenle"}
+                        </button>
+                      )}
+
+                      <select
+                        value={activeTicket.status}
+                        onChange={(e) => onChangeTicketStatus(activeTicket.id, e.target.value as any)}
+                        className="bg-[#080d0f] border border-outline-variant/30 text-[10px] font-mono font-bold rounded-lg py-1 px-1.5 focus:border-secondary outline-none rounded-xl"
+                      >
+                        <option value="beklemede">Kuyrukta (Beklemede)</option>
+                        <option value="yanıtlandı">Yanıtlandı</option>
+                        <option value="kapatıldı">Kapatıldı (Arşivlendi)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Inline field edit form block */}
+                  {isEditingTicketFields && onUpdateTicketFields && (
+                    <div className="p-4 bg-surface-container border-b border-outline-variant/30 space-y-3 font-mono text-xs">
+                      <p className="text-[10px] text-secondary font-black uppercase tracking-wider">🛠️ BİLET DETAYLARINI REVİZE ET</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-outline uppercase block font-bold">KONU BAŞLIĞI</label>
+                          <input
+                            type="text"
+                            value={editTicketSubject}
+                            onChange={(e) => setEditTicketSubject(e.target.value)}
+                            className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-lg p-2 text-xs text-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-outline uppercase block font-bold">KATEGORİ</label>
+                          <select
+                            value={editTicketCategory}
+                            onChange={(e) => setEditTicketCategory(e.target.value as any)}
+                            className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-lg p-2 text-xs text-white"
+                          >
+                            <option value="Genel">Genel</option>
+                            <option value="Ödeme">Ödeme</option>
+                            <option value="Hata Bildirimi">Hata Bildirimi</option>
+                            <option value="Klan İşlemleri">Klan İşlemleri</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-outline uppercase block font-bold">AÇAN OYUNCU (NICK)</label>
+                          <input
+                            type="text"
+                            value={editTicketUser}
+                            onChange={(e) => setEditTicketUser(e.target.value)}
+                            className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-lg p-2 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setEditTicketSubject(activeTicket.subject);
+                            setEditTicketCategory(activeTicket.category);
+                            setEditTicketUser(activeTicket.user);
+                            setIsEditingTicketFields(false);
+                          }}
+                          className="px-3 py-1.5 bg-transparent hover:bg-surface-container-highest rounded border border-outline-variant/30 text-[10px] text-outline uppercase font-black"
+                        >
+                          Vazgeç
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!editTicketSubject.trim() || !editTicketUser.trim()) {
+                              alert("Lütfen tüm alanları geçerli şekilde doldurun!");
+                              return;
+                            }
+                            await onUpdateTicketFields(activeTicket.id, {
+                              subject: editTicketSubject.trim(),
+                              category: editTicketCategory,
+                              user: editTicketUser.trim()
+                            });
+                            setIsEditingTicketFields(false);
+                          }}
+                          className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-[#0c1214] rounded text-[10px] uppercase font-black"
+                        >
+                          Kaydet
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Messages Feed */}
+                  <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#090e10]/80">
+                    {activeTicket.messages.map((m, idx) => {
+                      const isUser = m.sender === "user";
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex flex-col max-w-[85%] ${
+                            isUser ? "mr-auto items-start text-left" : "ml-auto items-end text-right"
+                          }`}
+                        >
+                          <div
+                            className={`p-3.5 rounded-2xl border ${
+                              isUser
+                                ? "bg-surface-container-high/90 border-[#1a252b] text-on-surface rounded-tl-none text-left"
+                                : "bg-secondary-container/10 border-secondary/35 text-on-surface rounded-tr-none text-left"
+                            }`}
+                          >
+                            <p className="text-xs md:text-sm whitespace-pre-wrap">{m.text}</p>
+                            
+                            {/* Visual Attachment View */}
+                            {m.attachment && (
+                              <div className="mt-3 overflow-hidden rounded-xl border border-outline-variant/20 max-w-sm">
+                                <img
+                                  src={m.attachment}
+                                  alt="Arıza Dekontu"
+                                  referrerPolicy="no-referrer"
+                                  className="w-full max-h-52 object-contain bg-black/50 cursor-pointer"
+                                  onClick={() => window.open(m.attachment, "_blank")}
+                                />
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1 mt-1 text-[9px] font-mono text-outline">
+                              <span>
+                                {new Date(m.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              <span className="opacity-60">•</span>
+                              <span className="font-bold text-[9px] uppercase mr-1">{m.senderName}</span>
+                              {onUpdateTicketMessage && (
+                                <>
+                                  <span className="opacity-60">•</span>
+                                  <button
+                                    onClick={() => {
+                                      const textInput = prompt("Mesajın içeriğini düzenleyin:", m.text);
+                                      if (textInput !== null && textInput.trim() !== "") {
+                                        onUpdateTicketMessage(activeTicket.id, idx, textInput.trim());
+                                      }
+                                    }}
+                                    className="hover:text-secondary text-secondary/70 cursor-pointer font-bold transition-all uppercase tracking-wide ml-1 text-[8.5px]"
+                                    title="Temsilci Mesajını Düzenle/Düzelt"
+                                  >
+                                    [Mesajı Düzenle]
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Message submit form response */}
+                  <div className="p-3 bg-surface-container-high/95 border-t border-outline-variant/20">
+                    <form onSubmit={handleSendAdminReplySubmit} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Cevap yazın ve durum 'YANITLANDI' olarak güncellenecektir..."
+                        value={adminReplyText}
+                        onChange={(e) => setAdminReplyText(e.target.value)}
+                        disabled={submittingReply}
+                        className="flex-grow bg-[#090e10] border border-outline-variant/30 rounded-xl py-2 px-3 text-xs md:text-sm text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none font-sans"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!adminReplyText.trim() || submittingReply}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-secondary text-on-secondary shadow-md shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <div className="glass-card h-[60vh] rounded-2xl border border-dashed border-outline-variant/35 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <TicketIcon className="w-12 h-12 text-outline-variant animate-pulse" />
+                  <div className="space-y-1">
+                    <h4 className="font-headline-md text-base font-bold text-on-surface">Talep Seçilmedi</h4>
+                    <p className="text-xs text-outline font-body-md max-w-sm">
+                      Kullanıcı yazışmalarını incelemek, durum güncellemek veya cevap göndermek için sol taraftan bir destek kaydı seçin.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {adminTab === "users" && (
+          /* TAB 4: MANUAL CREDITS LOADER & USERS MANAGEMENT */
+          <motion.div
+            key="tab-users"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+          >
+            {/* Manual credit loader form block */}
+            <div className="lg:col-span-5 space-y-4">
+              <form
+                onSubmit={handleManualCreditsSubmit}
+                className="glass-card p-6 rounded-2xl border border-secondary/35 space-y-5 bg-surface-container"
+              >
+                <div className="text-left space-y-1">
+                  <div className="flex items-center gap-1.5 text-secondary">
+                    <Coins className="w-5 h-5" />
+                    <h4 className="font-bold text-sm font-mono uppercase tracking-wider">Manuel Kredi Yükleme</h4>
+                  </div>
+                  <p className="text-[11px] text-outline leading-relaxed">
+                    Oyuncunun ödeme dekontuna göre bakiyesini artırın veya azaltın. Değişiklik anında Firestore'a işlenir.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">HEDEF MINECRAFT KULLANICI ADI</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Oyuncu adını tam yazınız..."
+                    value={targetUser}
+                    onChange={(e) => setTargetUser(e.target.value)}
+                    className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none focus:border-secondary"
+                  />
+                  {targetUser && (
+                    <span className="text-[9px] font-mono text-secondary-fixed opacity-75">
+                      Girdiğiniz veri: {targetUser.toLowerCase().trim()}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-outline uppercase tracking-wider block">YÜKLENECEK MİKTAR (₺)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Kredi eklemek için pozitif, düşürmek için negatif sayı girin"
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(Number(e.target.value))}
+                    className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-xl py-3 px-4 font-mono text-xs text-on-surface outline-none focus:border-secondary"
+                  />
+                </div>
+
+                {/* Quick credit amount shortcuts */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[25, 50, 100, 250, 500, -50, -100, 0].map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setCreditAmount(amount)}
+                      className={`py-1.5 rounded-lg text-[10px] font-mono font-bold cursor-pointer transition-colors ${
+                        creditAmount === amount
+                          ? "bg-secondary text-on-secondary"
+                          : "bg-surface-container-highest/60 hover:bg-surface-container-highest text-outline"
+                      }`}
+                    >
+                      {amount > 0 ? `+${amount}` : amount === 0 ? "Sıfırla" : `${amount}`}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingCredits || !targetUser.trim()}
+                  className="w-full py-4 bg-secondary hover:bg-secondary/85 text-on-secondary font-mono text-xs font-black uppercase rounded-xl shadow-md cursor-pointer transition-all active:scale-95 text-center flex items-center justify-center gap-2"
+                >
+                  <Coins className="w-4 h-4 animate-spin-slow" /> 
+                  {submittingCredits ? "YÜKLENİYOR..." : "KREDİYİ SİSTEMDE ETKİN KIL"}
+                </button>
+              </form>
+            </div>
+
+            {/* List and Search Database Users */}
+            <div className="lg:col-span-7 glass-card p-6 rounded-2xl border border-outline-variant/35 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <h4 className="text-white font-mono font-bold text-sm flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4" /> Kayıtlı Oyuncular ({usersList.length})
+                </h4>
+                
+                {/* Search query box */}
+                <div className="relative w-full sm:w-48">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                  <input
+                    type="text"
+                    placeholder="Kullanıcı ara..."
+                    value={usersSearch}
+                    onChange={(e) => setUsersSearch(e.target.value)}
+                    className="w-full bg-[#080d0f] border border-outline-variant/30 rounded-lg py-1.5 pl-8 pr-3 font-mono text-[11px] text-on-surface outline-none focus:border-secondary"
+                  />
+                </div>
+              </div>
+
+              {/* Display users in grid lists */}
+              <div className="divide-y divide-outline-variant/15 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
+                {filteredUsers.length === 0 ? (
+                  <p className="text-xs text-outline font-mono text-center py-6">Eşleşen kayıtlı oyuncu bulunamadı.</p>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <div
+                      key={u.username}
+                      className="py-3 flex justify-between items-center font-mono text-xs hover:bg-surface-container-high/20 px-2 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setTargetUser(u.username)}
+                          title="Bu kullanıcıyı yukleme hedefine seç"
+                          className="p-1 bg-surface-container-highest hover:bg-secondary/20 rounded cursor-pointer transition-colors"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 text-secondary" />
+                        </button>
+                        <div>
+                          <span className="font-bold text-white block">{u.username}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-outline">Rol: {u.role.toUpperCase()}</span>
+                            {onChangeUserRole && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const targetRole = u.role === "admin" ? "free" : "admin";
+                                  if (confirm(`${u.username} isimli kullanıcının rolünü "${targetRole.toUpperCase()}" yapmak istediğinizden emin misiniz?`)) {
+                                    await onChangeUserRole(u.username, targetRole);
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 bg-secondary-container/10 hover:bg-secondary/20 hover:text-secondary rounded text-[8px] font-bold text-outline-variant transition-colors border border-outline-variant/20 uppercase cursor-pointer"
+                                title="Rol Değiştir (Admin <-> Free)"
+                              >
+                                DEĞİŞTİR
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-secondary font-black block">{u.credits || 0},00 ₺</span>
+                        <span className="text-[9px] text-outline-variant">Aktif Bakiye</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {adminTab === "approvals" && (
+          /* TAB 5: BALANCE & PURCHASE APPROVAL MANAGER */
+          <motion.div
+            key="tab-approvals"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-between items-center">
+              <h3 className="font-headline-md text-lg text-on-surface font-black">Bakiye &amp; Satın Alma Onay Sırası</h3>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {approvals.length === 0 ? (
+                <div className="glass-card p-12 rounded-2xl border border-outline-variant/30 text-center space-y-3">
+                  <UserCheck className="w-12 h-12 text-secondary/40 mx-auto" />
+                  <p className="text-xs text-outline font-mono">Bekleyen bakiye yükleme veya satın alma onay talebi bulunmuyor.</p>
+                </div>
+              ) : (
+                approvals.map((req) => {
+                  const isPending = req.status === "beklemede";
+                  return (
+                    <div
+                      key={req.id}
+                      className={`glass-card p-5 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                        isPending
+                          ? "border-secondary/30 bg-surface-container/4 overflow-hidden relative shadow-md"
+                          : req.status === "onaylandi"
+                          ? "border-green-500/20 bg-green-500/5"
+                          : "border-red-500/20 bg-red-500/5"
+                      }`}
+                    >
+                      {/* Pulse glow for pending requests */}
+                      {isPending && (
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-secondary/40 via-yellow-500/80 to-secondary/40 animate-pulse-slow"></div>
+                      )}
+
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-xl ${
+                          req.type === "bakiye" 
+                            ? "bg-secondary/15 text-secondary border border-secondary/30" 
+                            : "bg-primary/10 text-primary border border-primary/20"
+                        }`}>
+                          <Coins className="w-5 h-5" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-black text-white hover:underline">
+                              {req.user.toUpperCase()}
+                            </span>
+                            <span className="text-[10px] font-mono tracking-wider font-extrabold uppercase px-2 py-0.5 rounded bg-outline-variant/30 text-secondary">
+                              ID: {req.id}
+                            </span>
+                            <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full ${
+                              req.type === "bakiye" 
+                                ? "bg-amber-500/20 text-amber-400" 
+                                : "bg-cyan-500/20 text-cyan-400"
+                            }`}>
+                              {req.type === "bakiye" ? "BAKİYE YÜKLEME" : "SATIN ALIM TALEBİ"}
+                            </span>
+                          </div>
+
+                          <p className="text-sm font-bold text-on-surface mt-1.5 font-sans leading-snug">
+                            {req.details}
+                          </p>
+
+                          <div className="flex items-center gap-3 mt-2 font-mono text-[10px] text-outline">
+                            <span>Oluşturulma: {new Date(req.createdAt).toLocaleString("tr-TR")}</span>
+                            <span>•</span>
+                            <span className={`font-black uppercase tracking-wider ${
+                              isPending 
+                                ? "text-yellow-400" 
+                                : req.status === "onaylandi" 
+                                ? "text-green-400" 
+                                : "text-red-400"
+                            }`}>
+                              DURUM: {req.status === "beklemede" ? "BEKLEMEDE" : req.status === "onaylandi" ? "ONAYLANDI" : "REDDEDİLDİ"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3.5 self-end md:self-center">
+                        <div className="text-right font-mono mr-2">
+                          <span className="text-lg font-black text-white block">{req.amount},00 ₺</span>
+                          <span className="text-[9px] text-outline-variant">Tutar</span>
+                        </div>
+
+                        {isPending ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (confirm(`${req.user} oyuncusunun bu talebini ONAYLAMAK istediğinize emin misiniz?`)) {
+                                  await onApproveRequest(req.id);
+                                }
+                              }}
+                              className="px-4 py-2 bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/40 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all cursor-pointer shadow-sm shadow-green-500/10"
+                            >
+                              ONAYLA
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (confirm(`${req.user} oyuncusunun bu talebini REDDETMEK istediğinize emin misiniz?`)) {
+                                  await onRejectRequest(req.id);
+                                }
+                              }}
+                              className="px-4 py-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/40 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all cursor-pointer shadow-sm shadow-red-500/10"
+                            >
+                              REDDET
+                            </button>
+                          </div>
+                        ) : (
+                          <div className={`px-4 py-1.5 rounded-xl border text-[10px] font-black tracking-wider uppercase font-mono ${
+                            req.status === "onaylandi"
+                              ? "bg-green-500/10 border-green-500/30 text-green-400"
+                              : "bg-red-500/10 border-red-500/30 text-red-400"
+                          }`}>
+                            {req.status === "onaylandi" ? "İşlendi" : "Reddedildi"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

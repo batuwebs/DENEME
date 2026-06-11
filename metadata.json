@@ -1,0 +1,6 @@
+{
+  "name": "SarsılmazMC",
+  "description": "Futuristic Minecraft Towny Server web interface with store, admin panel, and Firestore-powered support ticket system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
